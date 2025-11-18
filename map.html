@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cannabis Dispensary Perceptual Map</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .map-container {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 900px;
+            width: 95%;
+            aspect-ratio: 1 / 1; /* Keep map square */
+            position: relative;
+        }
+
+        .chart-title {
+            text-align: center;
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: #2a3d4f;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s; /* Removed transform transition */
+            max-width: 250px;
+            font-size: 0.9rem;
+            z-index: 1000;
+        }
+
+        .tooltip h4 {
+            font-weight: 700;
+            margin-bottom: 5px;
+            font-size: 1.1rem;
+            color: #fff;
+        }
+
+        /* D3 Styles */
+        .brand-bubble {
+            cursor: pointer;
+            transition: opacity 0.3s;
+            stroke: #fff;
+            stroke-width: 1.5px;
+        }
+
+        .brand-bubble:hover {
+            opacity: 0.8;
+            /* Removed transform: scale(1.1) to prevent jiggling */
+        }
+
+        .axis-line {
+            stroke: #4b5563; /* Tailwind gray-600 */
+            stroke-width: 2px;
+        }
+
+        .axis-label {
+            font-weight: 600;
+            fill: #1f2937; /* Tailwind gray-800 */
+            text-anchor: middle;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="map-container">
+        <h1 class="chart-title">Colorado Cannabis Dispensary Perceptual Map</h1>
+        <svg id="perceptual-map"></svg>
+        <div id="tooltip" class="tooltip"></div>
+    </div>
+
+    <script>
+        // Define standardized radius values
+        const standardRadius = 12;
+        const protocolRadius = 18;
+        
+        // Perceptual Map Data (Label property added for concise display)
+        const brandData = [
+            { name: "Protocol (Target)", label: "Protocol", x: 9.5, y: 9.5, color: "#0077B6", desc: "TARGET BRAND: Highly curated, premium, performance + wellness focused. The strategic gap." },
+            { name: "Native Roots", label: "Native Roots", x: 2.5, y: 3.0, color: "#F7941D", desc: "Mass-Market/Value: Recreational, commodity feel. High volume and ubiquitous." },
+            { name: "LivWell Enlightened Health", label: "LivWell", x: 3.5, y: 4.0, color: "#A8C4A9", desc: "Mid-Market/Large Selection: Recreational-first, large selection, some wellness messaging." },
+            { name: "The Green Solution", label: "Green Solution", x: 4.5, y: 2.5, color: "#7A7878", desc: "Volume-Driven: Slightly polished, but mass-market and focused on volume/deals." },
+            { name: "Lightshade", label: "Lightshade", x: 6.5, y: 5.5, color: "#9C27B0", desc: "Modern/Broad Appeal: Clean aesthetic, middle-of-the-road quality/price." },
+            { name: "Apothecary Farms", label: "Apothecary Farms", x: 6.0, y: 7.5, color: "#38B000", desc: "Niche/Expertise: Known for concentrates (Ambrosia), appealing to connoisseurs/product knowledge." },
+            { name: "The Hemp Depot/CBD Boutiques", label: "CBD Boutiques", x: 8.0, y: 7.0, color: "#FF5733", desc: "Wellness-Focused (Non-THC): High-end CBD stores, curated environment, but lower THC integration." },
+            { name: "Star Buds", label: "Star Buds", x: 3.0, y: 1.5, color: "#FFD700", desc: "Deeply Price-Driven: Focus on deals, value-first, less emphasis on experience." }
+        ];
+
+        // D3 Setup
+        const margin = { top: 40, right: 40, bottom: 60, left: 60 };
+        const container = d3.select("#perceptual-map");
+        let width, height;
+
+        const updateDimensions = () => {
+            const containerWidth = document.querySelector('.map-container').clientWidth - 60; // account for padding
+            width = containerWidth - margin.left - margin.right;
+            height = containerWidth - margin.top - margin.bottom;
+
+            container
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+        };
+        
+        updateDimensions(); // Initial dimensions
+
+        const svg = container.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Scales (Mapping data values 1-10 to pixel coordinates)
+        const xScale = d3.scaleLinear()
+            .domain([1, 10])
+            .range([0, width]);
+
+        // Y scale is reversed because SVG y=0 is at the top
+        const yScale = d3.scaleLinear()
+            .domain([1, 10])
+            .range([height, 0]);
+
+        // Quadrant/Midpoint Configuration
+        const midX = 5.5;
+        const midY = 5.5;
+
+        // --- 1. Draw Axes and Quadrant Lines (Emulating Reference Image) ---
+
+        // Vertical Quadrant Line (Midpoint X)
+        svg.append("line")
+            .attr("class", "axis-line")
+            .attr("x1", xScale(midX))
+            .attr("x2", xScale(midX))
+            .attr("y1", 0)
+            .attr("y2", height)
+            .style("stroke-dasharray", ("5, 5")); // Dashed line for quadrant division
+
+        // Horizontal Quadrant Line (Midpoint Y)
+        svg.append("line")
+            .attr("class", "axis-line")
+            .attr("x1", 0)
+            .attr("x2", width)
+            .attr("y1", yScale(midY))
+            .attr("y2", yScale(midY))
+            .style("stroke-dasharray", ("5, 5")); // Dashed line for quadrant division
+
+        // Quadrant Labels (Text)
+        svg.append("text")
+            .attr("class", "text-sm font-semibold fill-gray-500")
+            .attr("x", xScale((midX + 10) / 2))
+            .attr("y", yScale((midY + 10) / 2) - 10)
+            .attr("text-anchor", "middle")
+            .text("Premium / Performance Focus");
+
+        svg.append("text")
+            .attr("class", "text-sm font-semibold fill-gray-500")
+            .attr("x", xScale((1 + midX) / 2))
+            .attr("y", yScale((1 + midY) / 2) + 15)
+            .attr("text-anchor", "middle")
+            .text("Commodity / Price Focus");
+
+
+        // --- 2. Draw Data Points (Bubbles) ---
+
+        const bubbles = svg.selectAll(".brand-bubble")
+            .data(brandData)
+            .enter()
+            .append("circle")
+            .attr("class", "brand-bubble")
+            .attr("cx", d => xScale(d.x))
+            .attr("cy", d => yScale(d.y))
+            .attr("r", d => d.label === "Protocol" ? protocolRadius : standardRadius) // Use fixed, proper sizing
+            .attr("fill", d => d.color)
+            .style("opacity", 0.7)
+            .on("mouseover", handleMouseOver)
+            .on("mouseout", handleMouseOut);
+        
+        // Add Brand Name Labels
+        svg.selectAll(".brand-label")
+            .data(brandData)
+            .enter()
+            .append("text")
+            .attr("class", "text-xs font-medium pointer-events-none")
+            .attr("x", d => xScale(d.x))
+            // Position label relative to the fixed radius
+            .attr("y", d => yScale(d.y) + (d.label === "Protocol" ? protocolRadius : standardRadius) + 10) 
+            .attr("text-anchor", "middle")
+            .style("fill", "#374151")
+            .text(d => d.label); // Use the concise label property
+
+        // --- 3. Axis Labels at Ends (Emulating Reference Image) ---
+
+        // X-Axis Label (Right)
+        svg.append("text")
+            .attr("class", "axis-label text-base")
+            .attr("x", width)
+            .attr("y", height + margin.bottom / 2)
+            .attr("text-anchor", "end")
+            .text("DISPENSARY EXPERIENCE → Refined / Curated")
+            .style("font-size", "0.9rem");
+
+        // X-Axis Label (Left)
+        svg.append("text")
+            .attr("class", "axis-label text-base")
+            .attr("x", 0)
+            .attr("y", height + margin.bottom / 2)
+            .attr("text-anchor", "start")
+            .text("Chaotic / Overwhelming ←")
+            .style("font-size", "0.9rem");
+
+
+        // Y-Axis Label (Top)
+        svg.append("text")
+            .attr("class", "axis-label text-base")
+            .attr("transform", `translate(${xScale(midX)}, -15)`)
+            .attr("text-anchor", "middle")
+            .text("↑ Performance / Wellness-Driven")
+            .style("font-size", "0.9rem");
+
+        // Y-Axis Label (Bottom)
+        svg.append("text")
+            .attr("class", "axis-label text-base")
+            .attr("transform", `translate(${xScale(midX)}, ${height + 25})`)
+            .attr("text-anchor", "middle")
+            .text("↓ Recreational / Price-Driven")
+            .style("font-size", "0.9rem");
+
+        // --- 4. Tooltip Logic ---
+
+        const tooltip = d3.select("#tooltip");
+
+        function handleMouseOver(event, d) {
+            // Highlight the hovered circle
+            d3.select(this)
+                .attr("stroke", "#1f2937") // Darker stroke on hover
+                .attr("stroke-width", 3);
+
+            // Show tooltip
+            tooltip.transition()
+                .duration(200)
+                .style("opacity", 1);
+
+            // Note: d.name contains the full, proper name (e.g., LivWell Enlightened Health)
+            tooltip.html(`
+                <h4>${d.name}</h4>
+                <p>${d.desc}</p>
+            `)
+            
+            // Tooltip positioning logic (same as before to keep it from going off screen)
+            const mapRect = document.querySelector('.map-container').getBoundingClientRect();
+            const tooltipRect = tooltip.node().getBoundingClientRect();
+
+            let tooltipLeft = event.pageX + 15;
+            let tooltipTop = event.pageY - tooltipRect.height - 10;
+
+            if (tooltipLeft + tooltipRect.width > window.scrollX + window.innerWidth) {
+                tooltipLeft = event.pageX - tooltipRect.width - 15;
+            }
+            if (tooltipTop < window.scrollY + mapRect.top) {
+                tooltipTop = event.pageY + 15;
+            }
+
+            tooltip
+                .style("left", `${tooltipLeft}px`)
+                .style("top", `${tooltipTop}px`);
+
+        }
+
+        function handleMouseOut(event, d) {
+            // Un-highlight the circle
+            d3.select(this)
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 1.5);
+
+            // Hide tooltip
+            tooltip.transition()
+                .duration(500)
+                .style("opacity", 0);
+        }
+
+        // Add a resize listener for responsiveness
+        window.addEventListener('resize', () => {
+            // A simple page reload on resize ensures the SVG scales correctly based on the new container size.
+            location.reload(); 
+        });
+
+    </script>
+</body>
+</html>
