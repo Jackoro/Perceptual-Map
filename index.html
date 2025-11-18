@@ -46,7 +46,7 @@
             border-radius: 6px;
             pointer-events: none;
             opacity: 0;
-            transition: opacity 0.2s; /* Removed transform transition */
+            transition: opacity 0.2s;
             max-width: 250px;
             font-size: 0.9rem;
             z-index: 1000;
@@ -69,7 +69,6 @@
 
         .brand-bubble:hover {
             opacity: 0.8;
-            /* Removed transform: scale(1.1) to prevent jiggling */
         }
 
         .axis-line {
@@ -110,12 +109,16 @@
         ];
 
         // D3 Setup
-        const margin = { top: 40, right: 40, bottom: 60, left: 60 };
+        const margin = { top: 60, right: 10, bottom: 60, left: 10 }; // Adjusted margins for axis labels
         const container = d3.select("#perceptual-map");
         let width, height;
 
         const updateDimensions = () => {
-            const containerWidth = document.querySelector('.map-container').clientWidth - 60; // account for padding
+            const containerEl = document.querySelector('.map-container');
+            // Ensure width is based on available space for a square plot
+            const containerWidth = containerEl.clientWidth - (parseInt(getComputedStyle(containerEl).paddingLeft) * 2); 
+            
+            // Recalculate width/height based on container minus margins
             width = containerWidth - margin.left - margin.right;
             height = containerWidth - margin.top - margin.bottom;
 
@@ -142,6 +145,7 @@
         // Quadrant/Midpoint Configuration
         const midX = 5.5;
         const midY = 5.5;
+        const labelOffset = 15; // Distance of axis labels from quadrant lines
 
         // --- 1. Draw Axes and Quadrant Lines (Emulating Reference Image) ---
 
@@ -207,39 +211,41 @@
             .style("fill", "#374151")
             .text(d => d.label); // Use the concise label property
 
-        // --- 3. Axis Labels at Ends (Emulating Reference Image) ---
+        // --- 3. Axis Direction Labels (Fixed Location and Purpose) ---
 
-        // X-Axis Label (Right)
+        // X-Axis Label (Right - Refined / Curated)
         svg.append("text")
             .attr("class", "axis-label text-base")
-            .attr("x", width)
-            .attr("y", height + margin.bottom / 2)
-            .attr("text-anchor", "end")
-            .text("DISPENSARY EXPERIENCE → Refined / Curated")
-            .style("font-size", "0.9rem");
-
-        // X-Axis Label (Left)
-        svg.append("text")
-            .attr("class", "axis-label text-base")
-            .attr("x", 0)
-            .attr("y", height + margin.bottom / 2)
+            .attr("x", width + labelOffset) // Position to the right of the plot area
+            .attr("y", yScale(midY) + 5) // Vertically centered on the horizontal axis line
             .attr("text-anchor", "start")
-            .text("Chaotic / Overwhelming ←")
+            .text("Refined / Curated →")
+            .style("font-size", "0.9rem");
+
+        // X-Axis Label (Left - Chaotic / Overwhelming)
+        svg.append("text")
+            .attr("class", "axis-label text-base")
+            .attr("x", -labelOffset) // Position to the left of the plot area
+            .attr("y", yScale(midY) + 5) // Vertically centered on the horizontal axis line
+            .attr("text-anchor", "end")
+            .text("← Chaotic / Overwhelming")
             .style("font-size", "0.9rem");
 
 
-        // Y-Axis Label (Top)
+        // Y-Axis Label (Top - Performance / Wellness-Driven)
         svg.append("text")
             .attr("class", "axis-label text-base")
-            .attr("transform", `translate(${xScale(midX)}, -15)`)
+            .attr("x", xScale(midX))
+            .attr("y", -labelOffset) // Position above the top of the plot area
             .attr("text-anchor", "middle")
             .text("↑ Performance / Wellness-Driven")
             .style("font-size", "0.9rem");
 
-        // Y-Axis Label (Bottom)
+        // Y-Axis Label (Bottom - Recreational / Price-Driven)
         svg.append("text")
             .attr("class", "axis-label text-base")
-            .attr("transform", `translate(${xScale(midX)}, ${height + 25})`)
+            .attr("x", xScale(midX))
+            .attr("y", height + labelOffset + 5) // Position below the bottom of the plot area
             .attr("text-anchor", "middle")
             .text("↓ Recreational / Price-Driven")
             .style("font-size", "0.9rem");
